@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rimjhim Cyber Zone - Realtime Wireless Print Portal</title>
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code Generator Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Firebase JS SDK (v11.6.1) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration fallback for self-contained execution
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "demo-api-key",
+            authDomain: "demo-app.firebaseapp.com",
+            projectId: "demo-app",
+            storageBucket: "demo-app.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef"
+        };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rimjhim-print-portal';
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.firebaseCtx = { app, auth, db, appId, setDoc, doc, updateDoc, deleteDoc, collection, onSnapshot };
+    </script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#095186',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Pulse Ring for New Live Orders */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(2, 132, 199, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0); }
+        }
+        .pulse-badge {
+            animation: pulse-ring 2s infinite;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+
+    <!-- TOP HEADER NAVBAR -->
+    <header class="bg-gradient-to-r from-brand-900 via-brand-700 to-brand-600 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white/10 p-2 rounded-xl backdrop-blur-md border border-white/20">
+                    <i class="fa-solid fa-print text-2xl text-cyan-300"></i>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-lg sm:text-xl tracking-tight leading-none text-white">Rimjhim Cyber Zone</h1>
+                    <p class="text-xs text-cyan-200 mt-0.5 font-medium hidden sm:block">Realtime Mobile-to-PC Print Portal | Helpline: +91 7667820061</p>
+                </div>
+            </div>
+
+            <!-- Mode Switcher Tabs -->
+            <div class="flex items-center bg-brand-900/50 p-1 rounded-xl border border-white/10 text-xs sm:text-sm font-semibold">
+                <button id="navCustomerBtn" onclick="switchTab('customer')" class="px-3 sm:px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center space-x-1.5 bg-white text-brand-900 shadow">
+                    <i class="fa-solid fa-mobile-screen"></i>
+                    <span>Customer View</span>
+                </button>
+                <button id="navAdminBtn" onclick="switchTab('admin')" class="px-3 sm:px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center space-x-1.5 text-white/80 hover:text-white">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span>Computer Admin Panel</span>
+                    <span id="pendingBadge" class="hidden bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN APP CONTAINER -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Sync Indicator Banner -->
+        <div id="syncStatusBanner" class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-2 rounded-xl text-xs flex items-center justify-between shadow-sm">
+            <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span class="font-bold">Realtime Network Connected:</span>
+                <span class="text-emerald-700">Mobile uploads will immediately reflect on the Computer Admin Panel.</span>
+            </div>
+            <span class="font-mono text-[10px] bg-emerald-200/80 px-2 py-0.5 rounded-full font-bold">Cloud Sync Enabled</span>
+        </div>
+
+        <!-- ================= CUSTOMER VIEW (MOBILE FOCUS) ================= -->
+        <section id="customerSection" class="max-w-xl mx-auto space-y-6">
+            <!-- Header Card -->
+            <div class="bg-gradient-to-br from-brand-50 via-sky-50 to-indigo-50 border border-brand-100 p-5 rounded-2xl text-center shadow-sm">
+                <div class="w-12 h-12 bg-brand-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-md shadow-brand-500/20">
+                    <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-slate-900">Upload Document from Mobile</h2>
+                <p class="text-xs text-slate-600 mt-1">Upload PDF, Photos or Aadhaar Card. Request directly appears on Shop Counter Computer!</p>
+                <div class="mt-2 text-[11px] font-bold text-brand-700 bg-brand-100/60 inline-block px-3 py-1 rounded-full">
+                    <i class="fa-solid fa-headset mr-1"></i>Helpline: +91 7667820061
+                </div>
+            </div>
+
+            <!-- Upload Form -->
+            <form id="printForm" onsubmit="handleCustomerSubmit(event)" class="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 space-y-5">
+                
+                <!-- Customer Info -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Your Name <span class="text-rose-500">*</span></label>
+                        <div class="relative">
+                            <i class="fa-solid fa-user absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                            <input type="text" id="custName" required placeholder="e.g. Rahul Kumar" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Phone Number <span class="text-slate-400 font-normal">(Optional)</span></label>
+                        <div class="relative">
+                            <i class="fa-solid fa-phone absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                            <input type="tel" id="custPhone" placeholder="e.g. 9876543210" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Category Selector -->
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Select Document Type <span class="text-rose-500">*</span></label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="docCategory" value="standard" checked onchange="toggleDocType('standard')" class="peer hidden">
+                            <div class="p-3 border-2 border-slate-200 peer-checked:border-brand-500 peer-checked:bg-brand-50/50 rounded-xl text-center transition-all">
+                                <i class="fa-solid fa-file-pdf text-slate-600 peer-checked:text-brand-600 mb-1 block text-xl"></i>
+                                <span class="text-xs font-bold text-slate-700">General Document</span>
+                                <span class="block text-[10px] text-slate-400 font-medium">PDF, Image, Photos</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="docCategory" value="aadhaar" onchange="toggleDocType('aadhaar')" class="peer hidden">
+                            <div class="p-3 border-2 border-slate-200 peer-checked:border-brand-500 peer-checked:bg-brand-50/50 rounded-xl text-center transition-all">
+                                <i class="fa-solid fa-address-card text-emerald-600 mb-1 block text-xl"></i>
+                                <span class="text-xs font-bold text-slate-700">Aadhaar Card</span>
+                                <span class="block text-[10px] text-amber-600 font-bold">Auto Standard Size</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 1. STANDARD FILE UPLOAD BOX -->
+                <div id="standardUploadSection" class="space-y-2">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Select Document File</label>
+                    <div id="dropZone" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-slate-300 hover:border-brand-500 bg-slate-50 hover:bg-brand-50/30 transition-all rounded-2xl p-5 text-center cursor-pointer group">
+                        <input type="file" id="fileInput" accept="image/*,application/pdf" class="hidden" onchange="handleStandardFileSelect(event)">
+                        
+                        <div id="uploadPrompt" class="space-y-2">
+                            <div class="w-12 h-12 rounded-full bg-slate-200 group-hover:bg-brand-100 group-hover:text-brand-600 text-slate-500 transition-all flex items-center justify-center mx-auto">
+                                <i class="fa-solid fa-file-circle-plus text-xl"></i>
+                            </div>
+                            <p class="text-sm font-semibold text-slate-700">Tap to select photo or document</p>
+                            <p class="text-xs text-slate-400">PDF, JPG, PNG, WEBP (Max 10MB)</p>
+                        </div>
+
+                        <!-- Selected File Preview Bar -->
+                        <div id="filePreview" class="hidden flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm text-left">
+                            <div class="flex items-center space-x-3 overflow-hidden">
+                                <div id="fileIcon" class="w-10 h-10 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-file text-lg"></i>
+                                </div>
+                                <div class="truncate">
+                                    <p id="fileName" class="text-sm font-semibold text-slate-800 truncate">document.pdf</p>
+                                    <p id="fileSize" class="text-xs text-slate-400">1.2 MB</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick="event.stopPropagation(); removeStandardFile()" class="p-2 text-slate-400 hover:text-rose-500 rounded-lg transition-colors">
+                                <i class="fa-solid fa-xmark text-base"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. AADHAAR DUAL UPLOAD SECTION -->
+                <div id="aadhaarUploadSection" class="hidden space-y-4 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-800 flex items-center">
+                            <i class="fa-solid fa-id-card text-emerald-600 mr-1.5"></i> Aadhaar Photo Uploads
+                        </span>
+                        <span class="text-[10px] bg-emerald-200 text-emerald-900 font-bold px-2 py-0.5 rounded-full">Standard Size Auto-Fit</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Front Photo Box -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Front Side Photo <span class="text-rose-500">*</span></label>
+                            <div onclick="document.getElementById('aadhaarFrontInput').click()" class="border-2 border-dashed border-emerald-300 bg-white hover:bg-emerald-50 transition-all rounded-xl p-3 text-center cursor-pointer min-h-[110px] flex flex-col items-center justify-center relative overflow-hidden">
+                                <input type="file" id="aadhaarFrontInput" accept="image/*" class="hidden" onchange="handleAadhaarSideSelect(event, 'front')">
+                                <div id="aadhaarFrontPrompt" class="space-y-1">
+                                    <i class="fa-solid fa-camera text-emerald-500 text-xl"></i>
+                                    <p class="text-xs font-bold text-slate-700">Upload Front Side</p>
+                                    <p class="text-[10px] text-slate-400">Photo & Name side</p>
+                                </div>
+                                <img id="aadhaarFrontImg" class="hidden absolute inset-0 w-full h-full object-cover rounded-lg">
+                            </div>
+                            <!-- Controls -->
+                            <div id="frontControls" class="hidden flex items-center justify-between mt-1 text-[10px]">
+                                <button type="button" onclick="rotateAadhaar('front')" class="text-brand-600 hover:underline"><i class="fa-solid fa-rotate-right mr-1"></i>Rotate</button>
+                                <button type="button" onclick="removeAadhaarSide('front')" class="text-rose-500 hover:underline"><i class="fa-solid fa-trash mr-1"></i>Remove</button>
+                            </div>
+                        </div>
+
+                        <!-- Back Photo Box -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Back Side Photo <span class="text-rose-500">*</span></label>
+                            <div onclick="document.getElementById('aadhaarBackInput').click()" class="border-2 border-dashed border-emerald-300 bg-white hover:bg-emerald-50 transition-all rounded-xl p-3 text-center cursor-pointer min-h-[110px] flex flex-col items-center justify-center relative overflow-hidden">
+                                <input type="file" id="aadhaarBackInput" accept="image/*" class="hidden" onchange="handleAadhaarSideSelect(event, 'back')">
+                                <div id="aadhaarBackPrompt" class="space-y-1">
+                                    <i class="fa-solid fa-house-user text-emerald-500 text-xl"></i>
+                                    <p class="text-xs font-bold text-slate-700">Upload Back Side</p>
+                                    <p class="text-[10px] text-slate-400">Address side</p>
+                                </div>
+                                <img id="aadhaarBackImg" class="hidden absolute inset-0 w-full h-full object-cover rounded-lg">
+                            </div>
+                            <!-- Controls -->
+                            <div id="backControls" class="hidden flex items-center justify-between mt-1 text-[10px]">
+                                <button type="button" onclick="rotateAadhaar('back')" class="text-brand-600 hover:underline"><i class="fa-solid fa-rotate-right mr-1"></i>Rotate</button>
+                                <button type="button" onclick="removeAadhaarSide('back')" class="text-rose-500 hover:underline"><i class="fa-solid fa-trash mr-1"></i>Remove</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Standard Aadhaar A4 Preview Box -->
+                    <div id="aadhaarLivePreviewContainer" class="hidden pt-2 border-t border-emerald-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-bold text-slate-700">Live Standard A4 Print Layout Preview:</span>
+                            <span class="text-[10px] text-slate-500">Auto-dimensioned (85.6mm × 53.9mm)</span>
+                        </div>
+                        <div class="bg-slate-200 p-2 rounded-xl flex justify-center">
+                            <canvas id="aadhaarCanvas" class="bg-white shadow-md rounded border border-slate-300 max-w-full h-auto"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print Options -->
+                <div class="space-y-4 pt-2 border-t border-slate-100">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Print Preferences</h3>
+
+                    <!-- Color Mode Selector -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="colorMode" value="Black & White" checked class="peer hidden">
+                            <div class="p-3 border-2 border-slate-200 peer-checked:border-brand-500 peer-checked:bg-brand-50/50 rounded-xl text-center transition-all">
+                                <i class="fa-solid fa-circle-half-stroke text-slate-600 peer-checked:text-brand-600 mb-1 block text-lg"></i>
+                                <span class="text-xs font-bold text-slate-700">Black & White</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="colorMode" value="Color" class="peer hidden">
+                            <div class="p-3 border-2 border-slate-200 peer-checked:border-brand-500 peer-checked:bg-brand-50/50 rounded-xl text-center transition-all">
+                                <i class="fa-solid fa-palette text-amber-500 mb-1 block text-lg"></i>
+                                <span class="text-xs font-bold text-slate-700">Full Color</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Copies & Pages -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Copies</label>
+                            <div class="flex items-center border border-slate-200 bg-slate-50 rounded-xl overflow-hidden">
+                                <button type="button" onclick="adjustCopies(-1)" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm">-</button>
+                                <input type="number" id="copiesCount" value="1" min="1" max="99" readonly class="w-full text-center bg-transparent text-sm font-bold text-slate-800">
+                                <button type="button" onclick="adjustCopies(1)" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-sm">+</button>
+                            </div>
+                        </div>
+                        <div id="pageRangeContainer">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Page Range</label>
+                            <input type="text" id="pageRange" placeholder="e.g. All or 1-3" value="All" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submitBtn" class="w-full py-3.5 px-4 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-lg shadow-brand-600/30 transition-all flex items-center justify-center space-x-2 text-sm sm:text-base">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Send to Computer Admin Panel Now</span>
+                </button>
+            </form>
+
+            <!-- Success Confirmation Screen -->
+            <div id="successModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+                    <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl">
+                        <i class="fa-solid fa-check"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-extrabold text-slate-900">Request Sent to Computer!</h3>
+                        <p class="text-xs text-slate-500 mt-1">Show this 4-digit code at the counter</p>
+                    </div>
+
+                    <!-- Unique Code Badge -->
+                    <div class="bg-slate-900 text-white py-4 px-6 rounded-2xl border-2 border-brand-500 shadow-inner">
+                        <p class="text-xs uppercase tracking-widest text-slate-400 font-bold mb-1">Your Print Token Code</p>
+                        <p id="generatedCodeDisplay" class="text-4xl font-black tracking-wider text-cyan-400">#4921</p>
+                    </div>
+
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 text-left flex items-start space-x-2">
+                        <i class="fa-solid fa-circle-info text-amber-600 mt-0.5 shrink-0"></i>
+                        <span>Shopkeeper's desktop computer has received your request in realtime and will print it now.</span>
+                    </div>
+
+                    <button onclick="closeSuccessModal()" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl transition-all text-sm">
+                        Upload Another Document
+                    </button>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ================= COMPUTER ADMIN PANEL VIEW ================= -->
+        <section id="adminSection" class="hidden space-y-6">
+            
+            <!-- Dashboard Controls Bar -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-brand-100 text-brand-600 rounded-xl flex items-center justify-center font-bold text-lg">
+                        <i class="fa-solid fa-desktop"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900">Rimjhim Cyber Zone - Computer Dashboard</h2>
+                        <p class="text-xs text-slate-500">Live incoming mobile requests | Helpline: +91 7667820061</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Audio Sound Toggle -->
+                    <button id="soundToggleBtn" onclick="toggleAudio()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center space-x-2 transition-all">
+                        <i id="soundIcon" class="fa-solid fa-volume-high text-emerald-600"></i>
+                        <span id="soundLabel">Sound: ON</span>
+                    </button>
+
+                    <!-- Change Password Button -->
+                    <button onclick="openChangePasswordModal()" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl flex items-center space-x-2 transition-all">
+                        <i class="fa-solid fa-key"></i>
+                        <span>Change Password</span>
+                    </button>
+
+                    <!-- QR Code Generator Trigger -->
+                    <button onclick="openQRModal()" class="px-3 py-2 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 text-xs font-bold rounded-xl flex items-center space-x-2 transition-all">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <span>Get Shop QR Code</span>
+                    </button>
+
+                    <!-- Clear All Finished -->
+                    <button onclick="clearAllOrders()" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold rounded-xl flex items-center space-x-2 transition-all">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Clear All</span>
+                    </button>
+
+                    <!-- Lock / Logout Admin -->
+                    <button onclick="adminLogout()" class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl flex items-center space-x-2 transition-all">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        <span>Lock Admin</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg shrink-0">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Pending</p>
+                        <p id="statPending" class="text-xl font-extrabold text-slate-800">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg shrink-0">
+                        <i class="fa-solid fa-check-double"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Printed</p>
+                        <p id="statCompleted" class="text-xl font-extrabold text-slate-800">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg shrink-0">
+                        <i class="fa-solid fa-xmark"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Rejected</p>
+                        <p id="statRejected" class="text-xl font-extrabold text-slate-800">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-lg shrink-0">
+                        <i class="fa-solid fa-list-check"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase">Total Today</p>
+                        <p id="statTotal" class="text-xl font-extrabold text-slate-800">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Orders Feed / Grid -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center space-x-2">
+                        <span>Live Mobile Orders Feed</span>
+                        <span id="livePulse" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    </h3>
+                    <div class="text-xs text-slate-500">
+                        Filter: 
+                        <select id="statusFilter" onchange="renderAdminQueue()" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-medium focus:outline-none">
+                            <option value="ALL">All Orders</option>
+                            <option value="PENDING" selected>Pending Only</option>
+                            <option value="PRINTED">Printed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="adminQueue" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Cards injected dynamically -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyState" class="hidden bg-white rounded-3xl p-10 text-center border border-slate-200/80 shadow-sm space-y-3">
+                    <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto text-2xl">
+                        <i class="fa-solid fa-inbox"></i>
+                    </div>
+                    <h4 class="text-base font-bold text-slate-700">No active print requests</h4>
+                    <p class="text-xs text-slate-400 max-w-sm mx-auto">When customers scan the QR code and submit documents or Aadhaar photos from their phones, they will instantly pop up here with sound.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ================= MODALS & OVERLAYS ================= -->
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+            <div class="text-center space-y-2">
+                <div class="w-14 h-14 bg-brand-100 text-brand-700 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="text-xl font-extrabold text-slate-900">Computer Admin Login</h3>
+                <p class="text-xs text-slate-500">Enter shopkeeper password to unlock computer control panel</p>
+            </div>
+
+            <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Password</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-key absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+                        <input type="password" id="adminPasswordInput" required placeholder="Enter password" class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                    </div>
+                    <p id="loginErrorMsg" class="hidden text-rose-500 text-xs mt-1.5 font-semibold flex items-center">
+                        <i class="fa-solid fa-circle-exclamation mr-1"></i> Incorrect password!
+                    </p>
+                </div>
+
+                <div class="flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Default Password: <strong class="text-brand-600">1234</strong></span>
+                </div>
+
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeAdminLoginModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center space-x-1">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Unlock Panel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="changePasswordModal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl space-y-5 animate-in fade-in zoom-in duration-200">
+            <div class="text-center space-y-1">
+                <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto text-xl shadow-inner mb-2">
+                    <i class="fa-solid fa-user-gear"></i>
+                </div>
+                <h3 class="text-xl font-extrabold text-slate-900">Change Admin Password</h3>
+                <p class="text-xs text-slate-500">Update security passkey for this system</p>
+            </div>
+
+            <form onsubmit="handleChangePassword(event)" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Current Password</label>
+                    <input type="password" id="currPassInput" required placeholder="Enter current password" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">New Password</label>
+                    <input type="password" id="newPassInput" required minlength="4" placeholder="Enter new password" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Confirm New Password</label>
+                    <input type="password" id="confirmPassInput" required minlength="4" placeholder="Re-enter new password" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <p id="changePassMsg" class="hidden text-xs font-semibold mt-1"></p>
+
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeChangePasswordModal()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">
+                        Update Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Document Preview & Print Modal -->
+    <div id="previewModal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white p-4 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span id="previewCode" class="bg-cyan-500 text-slate-900 font-extrabold text-xs px-2.5 py-1 rounded-lg">#0000</span>
+                    <h3 id="previewTitle" class="font-bold text-sm sm:text-base truncate max-w-xs sm:max-w-md">Document Preview</h3>
+                </div>
+                <button onclick="closePreviewModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Preview Area) -->
+            <div class="flex-grow bg-slate-100 p-4 overflow-auto flex items-center justify-center min-h-[320px]">
+                <div id="previewContainer" class="max-w-full max-h-full flex items-center justify-center">
+                    <!-- Dynamic Preview -->
+                </div>
+            </div>
+
+            <!-- Modal Footer Controls -->
+            <div class="bg-white p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-slate-600 space-y-0.5">
+                    <p><span class="font-semibold text-slate-800">Customer:</span> <span id="previewCustomer">-</span></p>
+                    <p><span class="font-semibold text-slate-800">Settings:</span> <span id="previewSettings">-</span></p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="closePreviewModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all">
+                        Close
+                    </button>
+                    <button id="directPrintBtn" class="px-5 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center space-x-2">
+                        <i class="fa-solid fa-print"></i>
+                        <span>Print Document Now</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Generator Modal -->
+    <div id="qrModal" class="hidden fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center shadow-2xl space-y-6">
+            <div class="flex items-center justify-between border-b pb-3">
+                <h3 class="font-bold text-base text-slate-800">Shop Counter QR Poster</h3>
+                <button onclick="closeQRModal()" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- QR Printable Card -->
+            <div id="printableQRPoster" class="bg-white p-6 rounded-2xl border-4 border-brand-600 space-y-4 shadow-sm text-center">
+                <div class="space-y-1">
+                    <div class="inline-block p-2 bg-brand-100 text-brand-700 rounded-xl mb-1">
+                        <i class="fa-solid fa-print text-xl"></i>
+                    </div>
+                    <h2 class="text-xl font-black text-slate-900 tracking-tight">Rimjhim Cyber Zone</h2>
+                    <p class="text-[11px] font-bold text-brand-600 uppercase tracking-wider">Wireless Printing & Aadhaar Service</p>
+                    <p class="text-[10px] text-slate-500 font-bold">Helpline: +91 7667820061</p>
+                </div>
+
+                <!-- QR Container -->
+                <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-center inline-block">
+                    <div id="qrcode" class="p-1 bg-white rounded-xl"></div>
+                </div>
+
+                <div class="text-xs font-bold text-slate-700 space-y-1">
+                    <p class="text-slate-900">📲 Scan QR code from mobile</p>
+                    <p class="text-slate-500 font-normal text-[11px]">Upload documents & get instant 4-digit code</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex space-x-3">
+                <button onclick="printShopQR()" class="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-print"></i>
+                    <span>Print Poster for Counter</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= JAVASCRIPT CORE LOGIC ================= -->
+    <script>
+        // State management
+        let currentCategory = 'standard';
+        let isAdminLoggedIn = false;
+
+        // File states
+        let standardFileBase64 = null;
+        let standardFileType = null;
+        let standardFileName = '';
+        let standardFileSizeStr = '';
+
+        // Aadhaar State
+        let aadhaarFrontBase64 = null;
+        let aadhaarBackBase64 = null;
+        let aadhaarFrontRot = 0;
+        let aadhaarBackRot = 0;
+        let finalAadhaarA4DataUrl = null;
+
+        // Realtime Orders
+        let orders = [];
+        let isAudioEnabled = true;
+        let unsubscribeRealtime = null;
+
+        // Sound Chime Generator (No external audio file dependency)
+        function playChime() {
+            if (!isAudioEnabled) return;
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start();
+                osc.stop(ctx.currentTime + 0.4);
+            } catch(e) {
+                console.log("Audio blocked by browser policy until user interacts");
+            }
+        }
+
+        // Initialize Realtime Sync Engine (Firestore / Local Fallback)
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!localStorage.getItem('rimjhim_admin_password')) {
+                localStorage.setItem('rimjhim_admin_password', '1234');
+            }
+
+            generateShopQR();
+            setupRealtimeSync();
+        });
+
+        // Setup Realtime Database Sync Listener across Mobile & Computer
+        async function setupRealtimeSync() {
+            const { auth, db, appId, onSnapshot, collection } = window.firebaseCtx;
+
+            try {
+                // Anonymous auth for secure Firestore reads/writes
+                const userCredential = await signInAnonymously(auth);
+                const user = userCredential.user;
+
+                if (!user) return;
+
+                // Path following strict mandate: /artifacts/{appId}/public/data/orders
+                const ordersCol = collection(db, 'artifacts', appId, 'public', 'data', 'orders');
+
+                unsubscribeRealtime = onSnapshot(ordersCol, (snapshot) => {
+                    const freshOrders = [];
+                    let hasNewPending = false;
+
+                    snapshot.forEach((docSnap) => {
+                        freshOrders.push({ id: docSnap.id, ...docSnap.data() });
+                    });
+
+                    // Sort orders by timestamp newest first
+                    freshOrders.sort((a, b) => b.createdAt - a.createdAt);
+
+                    // Detect if new pending order arrived
+                    if (freshOrders.length > orders.length) {
+                        hasNewPending = true;
+                    }
+
+                    orders = freshOrders;
+                    updateBadgeAndStats();
+
+                    if (isAdminLoggedIn) {
+                        renderAdminQueue();
+                    }
+
+                    if (hasNewPending) {
+                        playChime();
+                        showNotificationPop("⚡ New Mobile Order Received!");
+                    }
+                }, (error) => {
+                    console.warn("Firestore realtime fallback to LocalStorage sync:", error);
+                    setupLocalStorageFallback();
+                });
+
+            } catch (err) {
+                console.warn("Firestore network error, using LocalStorage fallback:", err);
+                setupLocalStorageFallback();
+            }
+        }
+
+        function setupLocalStorageFallback() {
+            loadOrdersFromStorage();
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'rimjhim_orders') {
+                    loadOrdersFromStorage();
+                    playChime();
+                }
+            });
+        }
+
+        // ADMIN AUTH FUNCTIONS
+        function getStoredPassword() {
+            return localStorage.getItem('rimjhim_admin_password') || '1234';
+        }
+
+        function switchTab(tab) {
+            const custSec = document.getElementById('customerSection');
+            const adminSec = document.getElementById('adminSection');
+            const navCust = document.getElementById('navCustomerBtn');
+            const navAdmin = document.getElementById('navAdminBtn');
+
+            if (tab === 'customer') {
+                custSec.classList.remove('hidden');
+                adminSec.classList.add('hidden');
+
+                navCust.className = "px-3 sm:px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center space-x-1.5 bg-white text-brand-900 shadow";
+                navAdmin.className = "px-3 sm:px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center space-x-1.5 text-white/80 hover:text-white";
+            } else {
+                if (!isAdminLoggedIn) {
+                    openAdminLoginModal();
+                    return;
+                }
+
+                custSec.classList.add('hidden');
+                adminSec.classList.remove('hidden');
+
+                navAdmin.className = "px-3 sm:px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center space-x-1.5 bg-white text-brand-900 shadow";
+                navCust.className = "px-3 sm:px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center space-x-1.5 text-white/80 hover:text-white";
+
+                renderAdminQueue();
+            }
+        }
+
+        function openAdminLoginModal() {
+            document.getElementById('adminPasswordInput').value = '';
+            document.getElementById('loginErrorMsg').classList.add('hidden');
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+        }
+
+        function closeAdminLoginModal() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+        }
+
+        function handleAdminLogin(event) {
+            event.preventDefault();
+            const enteredPass = document.getElementById('adminPasswordInput').value;
+            const currentPass = getStoredPassword();
+
+            if (enteredPass === currentPass) {
+                isAdminLoggedIn = true;
+                closeAdminLoginModal();
+                switchTab('admin');
+                showNotificationPop("Admin Panel Unlocked");
+            } else {
+                document.getElementById('loginErrorMsg').classList.remove('hidden');
+            }
+        }
+
+        function adminLogout() {
+            isAdminLoggedIn = false;
+            switchTab('customer');
+            showNotificationPop("Admin Panel Locked");
+        }
+
+        // Change Password Modal & Logic
+        function openChangePasswordModal() {
+            document.getElementById('currPassInput').value = '';
+            document.getElementById('newPassInput').value = '';
+            document.getElementById('confirmPassInput').value = '';
+            
+            const msg = document.getElementById('changePassMsg');
+            msg.className = "hidden text-xs font-semibold mt-1";
+            msg.innerText = "";
+            
+            document.getElementById('changePasswordModal').classList.remove('hidden');
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').classList.add('hidden');
+        }
+
+        function handleChangePassword(event) {
+            event.preventDefault();
+
+            const curr = document.getElementById('currPassInput').value;
+            const newP = document.getElementById('newPassInput').value;
+            const confP = document.getElementById('confirmPassInput').value;
+
+            const msg = document.getElementById('changePassMsg');
+            msg.classList.remove('hidden');
+
+            if (curr !== getStoredPassword()) {
+                msg.className = "text-rose-600 text-xs font-semibold mt-1 flex items-center";
+                msg.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> Current password is incorrect!`;
+                return;
+            }
+
+            if (newP !== confP) {
+                msg.className = "text-rose-600 text-xs font-semibold mt-1 flex items-center";
+                msg.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> New passwords do not match!`;
+                return;
+            }
+
+            localStorage.setItem('rimjhim_admin_password', newP);
+            msg.className = "text-emerald-600 text-xs font-semibold mt-1 flex items-center";
+            msg.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> Password updated successfully!`;
+
+            setTimeout(() => {
+                closeChangePasswordModal();
+                showNotificationPop("Password Changed Successfully!");
+            }, 1200);
+        }
+
+        // Toggle Document Category
+        function toggleDocType(type) {
+            currentCategory = type;
+            const stdSection = document.getElementById('standardUploadSection');
+            const aadhSection = document.getElementById('aadhaarUploadSection');
+            const pageRangeContainer = document.getElementById('pageRangeContainer');
+
+            if (type === 'standard') {
+                stdSection.classList.remove('hidden');
+                aadhSection.classList.add('hidden');
+                pageRangeContainer.classList.remove('hidden');
+            } else {
+                stdSection.classList.add('hidden');
+                aadhSection.classList.remove('hidden');
+                pageRangeContainer.classList.add('hidden');
+            }
+        }
+
+        // Standard File Select
+        function handleStandardFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File size exceeds 10MB limit.');
+                return;
+            }
+
+            standardFileName = file.name;
+            standardFileType = file.type;
+            standardFileSizeStr = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                standardFileBase64 = e.target.result;
+                displayStandardFileInfo();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function displayStandardFileInfo() {
+            document.getElementById('uploadPrompt').classList.add('hidden');
+            document.getElementById('filePreview').classList.remove('hidden');
+            document.getElementById('fileName').innerText = standardFileName;
+            document.getElementById('fileSize').innerText = standardFileSizeStr;
+
+            const fileIcon = document.getElementById('fileIcon');
+            if (standardFileType.includes('pdf')) {
+                fileIcon.innerHTML = `<i class="fa-solid fa-file-pdf text-rose-500 text-xl"></i>`;
+            } else if (standardFileType.includes('image')) {
+                fileIcon.innerHTML = `<i class="fa-solid fa-file-image text-emerald-500 text-xl"></i>`;
+            } else {
+                fileIcon.innerHTML = `<i class="fa-solid fa-file text-brand-500 text-xl"></i>`;
+            }
+        }
+
+        function removeStandardFile() {
+            standardFileBase64 = null;
+            standardFileType = null;
+            standardFileName = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('uploadPrompt').classList.remove('hidden');
+            document.getElementById('filePreview').classList.add('hidden');
+        }
+
+        // Aadhaar Side Uploads
+        function handleAadhaarSideSelect(event, side) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (side === 'front') {
+                    aadhaarFrontBase64 = e.target.result;
+                    document.getElementById('aadhaarFrontPrompt').classList.add('hidden');
+                    const img = document.getElementById('aadhaarFrontImg');
+                    img.src = aadhaarFrontBase64;
+                    img.classList.remove('hidden');
+                    document.getElementById('frontControls').classList.remove('hidden');
+                } else {
+                    aadhaarBackBase64 = e.target.result;
+                    document.getElementById('aadhaarBackPrompt').classList.add('hidden');
+                    const img = document.getElementById('aadhaarBackImg');
+                    img.src = aadhaarBackBase64;
+                    img.classList.remove('hidden');
+                    document.getElementById('backControls').classList.remove('hidden');
+                }
+                renderAadhaarCanvasA4();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function rotateAadhaar(side) {
+            if (side === 'front') {
+                aadhaarFrontRot = (aadhaarFrontRot + 90) % 360;
+            } else {
+                aadhaarBackRot = (aadhaarBackRot + 90) % 360;
+            }
+            renderAadhaarCanvasA4();
+        }
+
+        function removeAadhaarSide(side) {
+            if (side === 'front') {
+                aadhaarFrontBase64 = null;
+                aadhaarFrontRot = 0;
+                document.getElementById('aadhaarFrontInput').value = '';
+                document.getElementById('aadhaarFrontPrompt').classList.remove('hidden');
+                document.getElementById('aadhaarFrontImg').classList.add('hidden');
+                document.getElementById('frontControls').classList.add('hidden');
+            } else {
+                aadhaarBackBase64 = null;
+                aadhaarBackRot = 0;
+                document.getElementById('aadhaarBackInput').value = '';
+                document.getElementById('aadhaarBackPrompt').classList.remove('hidden');
+                document.getElementById('aadhaarBackImg').classList.add('hidden');
+                document.getElementById('backControls').classList.add('hidden');
+            }
+            renderAadhaarCanvasA4();
+        }
+
+        // Render Standard CR80 Aadhaar Cards onto A4 Sheet Canvas
+        function renderAadhaarCanvasA4() {
+            const container = document.getElementById('aadhaarLivePreviewContainer');
+            const canvas = document.getElementById('aadhaarCanvas');
+            const ctx = canvas.getContext('2d');
+
+            if (!aadhaarFrontBase64 && !aadhaarBackBase64) {
+                container.classList.add('hidden');
+                finalAadhaarA4DataUrl = null;
+                return;
+            }
+
+            container.classList.remove('hidden');
+
+            const canvasWidth = 800;
+            const canvasHeight = 1131;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            ctx.fillStyle = '#095186';
+            ctx.fillRect(0, 0, canvasWidth, 50);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 20px "Plus Jakarta Sans", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('RIMJHIM CYBER ZONE - STANDARD AADHAAR PRINT SHEET', canvasWidth / 2, 32);
+
+            const cardW = 340; // Standard 85.6mm scale
+            const cardH = 214; // Standard 53.9mm scale
+
+            const startX = (canvasWidth - cardW) / 2;
+            const frontY = 120;
+            const backY = 380;
+
+            let loadedImages = 0;
+            const totalToLoad = (aadhaarFrontBase64 ? 1 : 0) + (aadhaarBackBase64 ? 1 : 0);
+
+            function checkDone() {
+                loadedImages++;
+                if (loadedImages >= totalToLoad) {
+                    finalAadhaarA4DataUrl = canvas.toDataURL('image/jpeg', 0.88);
+                }
+            }
+
+            function drawCardBox(x, y, label) {
+                ctx.strokeStyle = '#cbd5e1';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 6]);
+                ctx.strokeRect(x - 2, y - 2, cardW + 4, cardH + 4);
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#64748b';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(label, x, y - 8);
+            }
+
+            drawCardBox(startX, frontY, 'FRONT SIDE (Standard 85.6mm x 53.9mm)');
+            drawCardBox(startX, backY, 'BACK SIDE (Standard 85.6mm x 53.9mm)');
+
+            if (aadhaarFrontBase64) {
+                const imgF = new Image();
+                imgF.onload = function() {
+                    drawScaledRotatedImage(ctx, imgF, startX, frontY, cardW, cardH, aadhaarFrontRot);
+                    checkDone();
+                };
+                imgF.src = aadhaarFrontBase64;
+            }
+
+            if (aadhaarBackBase64) {
+                const imgB = new Image();
+                imgB.onload = function() {
+                    drawScaledRotatedImage(ctx, imgB, startX, backY, cardW, cardH, aadhaarBackRot);
+                    checkDone();
+                };
+                imgB.src = aadhaarBackBase64;
+            }
+        }
+
+        function drawScaledRotatedImage(ctx, img, x, y, w, h, rotationDeg) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+
+            ctx.translate(cx, cy);
+            ctx.rotate((rotationDeg * Math.PI) / 180);
+
+            let drawW = w;
+            let drawH = h;
+            if (rotationDeg === 90 || rotationDeg === 270) {
+                drawW = h;
+                drawH = w;
+            }
+
+            ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+            ctx.restore();
+
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, w, h);
+        }
+
+        function adjustCopies(delta) {
+            const input = document.getElementById('copiesCount');
+            let val = parseInt(input.value) || 1;
+            val = Math.max(1, Math.min(99, val + delta));
+            input.value = val;
+        }
+
+        // Customer Mobile Submit Logic (Dispatches to Cloud Firestore Realtime DB)
+        async function handleCustomerSubmit(event) {
+            event.preventDefault();
+
+            let payloadData = null;
+            let payloadType = null;
+            let payloadFileName = '';
+
+            if (currentCategory === 'standard') {
+                if (!standardFileBase64) {
+                    alert('Please upload a document file.');
+                    return;
+                }
+                payloadData = standardFileBase64;
+                payloadType = standardFileType;
+                payloadFileName = standardFileName;
+            } else {
+                if (!aadhaarFrontBase64 || !aadhaarBackBase64) {
+                    alert('Please upload BOTH Front and Back side photos of your Aadhaar Card.');
+                    return;
+                }
+                if (!finalAadhaarA4DataUrl) {
+                    alert('Aadhaar processing in progress. Please wait 1 second and click submit again.');
+                    return;
+                }
+                payloadData = finalAadhaarA4DataUrl;
+                payloadType = 'image/jpeg';
+                payloadFileName = 'Aadhaar_Card_Standard_A4.jpg';
+            }
+
+            const name = document.getElementById('custName').value.trim();
+            const phone = document.getElementById('custPhone').value.trim() || 'N/A';
+            const colorMode = document.querySelector('input[name="colorMode"]:checked').value;
+            const copies = document.getElementById('copiesCount').value;
+            const pageRange = currentCategory === 'aadhaar' ? 'A4 Standard' : (document.getElementById('pageRange').value.trim() || 'All');
+
+            const uniqueCode = '#' + Math.floor(1000 + Math.random() * 9000);
+            const orderId = 'order_' + Date.now();
+
+            const newOrder = {
+                code: uniqueCode,
+                category: currentCategory,
+                customerName: name,
+                customerPhone: phone,
+                fileName: payloadFileName,
+                fileType: payloadType,
+                fileData: payloadData,
+                colorMode: colorMode,
+                copies: copies,
+                pageRange: pageRange,
+                status: 'PENDING',
+                createdAt: Date.now(),
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            // Save via Firebase Realtime Firestore Document
+            try {
+                const { db, appId, setDoc, doc } = window.firebaseCtx;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'orders', orderId);
+                await setDoc(docRef, newOrder);
+            } catch (err) {
+                console.warn("Saving to LocalStorage fallback:", err);
+                orders.unshift({ id: orderId, ...newOrder });
+                saveOrdersToStorage();
+            }
+
+            document.getElementById('generatedCodeDisplay').innerText = uniqueCode;
+            document.getElementById('successModal').classList.remove('hidden');
+
+            // Reset Form
+            document.getElementById('printForm').reset();
+            removeStandardFile();
+            removeAadhaarSide('front');
+            removeAadhaarSide('back');
+            toggleDocType('standard');
+            document.getElementById('copiesCount').value = '1';
+        }
+
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.add('hidden');
+        }
+
+        // Local Storage Helpers
+        function saveOrdersToStorage() {
+            try {
+                localStorage.setItem('rimjhim_orders', JSON.stringify(orders));
+                updateBadgeAndStats();
+            } catch (e) {
+                console.error("Storage limit reached:", e);
+            }
+        }
+
+        function loadOrdersFromStorage() {
+            const data = localStorage.getItem('rimjhim_orders');
+            if (data) {
+                try { orders = JSON.parse(data); } catch(e) { orders = []; }
+            } else { orders = []; }
+            updateBadgeAndStats();
+            if (isAdminLoggedIn) renderAdminQueue();
+        }
+
+        function updateBadgeAndStats() {
+            const pendingCount = orders.filter(o => o.status === 'PENDING').length;
+            const printedCount = orders.filter(o => o.status === 'PRINTED').length;
+            const rejectedCount = orders.filter(o => o.status === 'REJECTED').length;
+
+            const badge = document.getElementById('pendingBadge');
+            if (pendingCount > 0) {
+                badge.innerText = pendingCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            document.getElementById('statPending').innerText = pendingCount;
+            document.getElementById('statCompleted').innerText = printedCount;
+            document.getElementById('statRejected').innerText = rejectedCount;
+            document.getElementById('statTotal').innerText = orders.length;
+        }
+
+        // Render Desktop Queue Cards
+        function renderAdminQueue() {
+            const queueContainer = document.getElementById('adminQueue');
+            const emptyState = document.getElementById('emptyState');
+            const filter = document.getElementById('statusFilter').value;
+
+            queueContainer.innerHTML = '';
+
+            let filteredOrders = orders;
+            if (filter !== 'ALL') {
+                filteredOrders = orders.filter(o => o.status === filter);
+            }
+
+            if (filteredOrders.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filteredOrders.forEach(order => {
+                const card = document.createElement('div');
+                card.className = `bg-white rounded-2xl border p-5 shadow-sm space-y-4 transition-all relative ${
+                    order.status === 'PENDING' ? 'border-brand-200 ring-2 ring-brand-500/10' : 'border-slate-200 opacity-80'
+                }`;
+
+                const categoryBadge = order.category === 'aadhaar'
+                    ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase border border-emerald-300"><i class="fa-solid fa-address-card mr-1"></i>Aadhaar Card</span>`
+                    : `<span class="bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">Document</span>`;
+
+                const statusBadge = order.status === 'PENDING' 
+                    ? `<span class="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase">Pending</span>`
+                    : order.status === 'PRINTED'
+                    ? `<span class="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase">Printed</span>`
+                    : `<span class="bg-rose-100 text-rose-800 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase">Rejected</span>`;
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <span class="text-2xl font-black text-brand-600 tracking-tight">${order.code}</span>
+                            <div class="mt-0.5">${categoryBadge}</div>
+                            <p class="text-xs font-bold text-slate-800 mt-1">${escapeHtml(order.customerName)}</p>
+                            <p class="text-[11px] text-slate-400"><i class="fa-solid fa-phone text-[10px] mr-1"></i>${escapeHtml(order.customerPhone)}</p>
+                        </div>
+                        <div class="text-right space-y-1">
+                            ${statusBadge}
+                            <p class="text-[10px] text-slate-400">${order.time}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                        <div class="flex items-center space-x-2 text-xs font-medium text-slate-700 truncate">
+                            <i class="${getFileIconClass(order.fileType, order.category)} text-brand-500"></i>
+                            <span class="truncate">${escapeHtml(order.fileName)}</span>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5 text-[11px]">
+                            <span class="bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-md font-semibold">
+                                <i class="fa-solid fa-palette text-slate-400 mr-1"></i>${order.colorMode}
+                            </span>
+                            <span class="bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-md font-semibold">
+                                <i class="fa-solid fa-copy text-slate-400 mr-1"></i>${order.copies} ${order.copies > 1 ? 'Copies' : 'Copy'}
+                            </span>
+                            <span class="bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-md font-semibold">
+                                <i class="fa-solid fa-file-lines text-slate-400 mr-1"></i>Pages: ${order.pageRange}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 pt-1">
+                        <button onclick="previewOrder('${order.id}')" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-eye"></i>
+                            <span>View</span>
+                        </button>
+                        <button onclick="acceptAndPrint('${order.id}')" class="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center justify-center space-x-1.5">
+                            <i class="fa-solid fa-print"></i>
+                            <span>Print</span>
+                        </button>
+                        <button onclick="rejectOrder('${order.id}')" title="Delete Order" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                `;
+
+                queueContainer.appendChild(card);
+            });
+        }
+
+        // Preview Document
+        function previewOrder(id) {
+            const order = orders.find(o => o.id === id);
+            if (!order) return;
+
+            document.getElementById('previewCode').innerText = order.code;
+            document.getElementById('previewTitle').innerText = order.category === 'aadhaar' ? 'Aadhaar Card (Standard A4 Print Layout)' : order.fileName;
+            document.getElementById('previewCustomer').innerText = `${order.customerName} (${order.customerPhone})`;
+            document.getElementById('previewSettings').innerText = `${order.colorMode} | ${order.copies} Copy(s) | ${order.pageRange}`;
+
+            const container = document.getElementById('previewContainer');
+            container.innerHTML = '';
+
+            if (order.fileType.includes('image')) {
+                const img = document.createElement('img');
+                img.src = order.fileData;
+                img.className = 'max-h-[60vh] max-w-full rounded-lg shadow-md object-contain border border-slate-300';
+                container.appendChild(img);
+            } else if (order.fileType.includes('pdf')) {
+                const iframe = document.createElement('iframe');
+                iframe.src = order.fileData;
+                iframe.className = 'w-full h-[60vh] rounded-lg border border-slate-200';
+                container.appendChild(iframe);
+            }
+
+            document.getElementById('directPrintBtn').onclick = function() {
+                acceptAndPrint(order.id);
+            };
+
+            document.getElementById('previewModal').classList.remove('hidden');
+        }
+
+        function closePreviewModal() {
+            document.getElementById('previewModal').classList.add('hidden');
+        }
+
+        // Accept & Print Action
+        async function acceptAndPrint(id) {
+            const order = orders.find(o => o.id === id);
+            if (!order) return;
+
+            order.status = 'PRINTED';
+
+            try {
+                const { db, appId, updateDoc, doc } = window.firebaseCtx;
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'orders', id);
+                await updateDoc(docRef, { status: 'PRINTED' });
+            } catch (err) {
+                saveOrdersToStorage();
+            }
+
+            renderAdminQueue();
+
+            const printWindow = window.open('', '_blank');
+            if (order.fileType.includes('image')) {
+                printWindow.document.write(`
+                    <html>
+                        <head>
+                            <title>Print ${order.code} - ${order.customerName}</title>
+                            <style>
+                                @page { size: A4; margin: 10mm; }
+                                body { margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; background: #fff; }
+                                img { max-width: 100%; height: auto; object-fit: contain; }
+                            </style>
+                        </head>
+                        <body>
+                            <img src="${order.fileData}" onload="window.print(); window.close();"/>
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            } else if (order.fileType.includes('pdf')) {
+                printWindow.document.write(`
+                    <html>
+                        <head><title>Print ${order.code}</title></head>
+                        <body style="margin:0;">
+                            <embed src="${order.fileData}" type="application/pdf" width="100%" height="100%" />
+                            <script>
+                                setTimeout(function() { window.print(); }, 1000);
+                            <\/script>
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            }
+
+            closePreviewModal();
+        }
+
+        async function rejectOrder(id) {
+            if (confirm("Are you sure you want to remove this print request?")) {
+                try {
+                    const { db, appId, deleteDoc, doc } = window.firebaseCtx;
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'orders', id);
+                    await deleteDoc(docRef);
+                } catch (err) {
+                    orders = orders.filter(o => o.id !== id);
+                    saveOrdersToStorage();
+                }
+                renderAdminQueue();
+            }
+        }
+
+        async function clearAllOrders() {
+            if (confirm("Clear all print requests from dashboard?")) {
+                try {
+                    const { db, appId, deleteDoc, doc } = window.firebaseCtx;
+                    for (const o of orders) {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'orders', o.id);
+                        await deleteDoc(docRef);
+                    }
+                } catch (err) {
+                    orders = [];
+                    saveOrdersToStorage();
+                }
+                renderAdminQueue();
+            }
+        }
+
+        // QR Code Generator
+        function generateShopQR() {
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            
+            const pageUrl = window.location.href;
+
+            new QRCode(qrContainer, {
+                text: pageUrl,
+                width: 160,
+                height: 160,
+                colorDark: "#095186",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function openQRModal() {
+            document.getElementById('qrModal').classList.remove('hidden');
+        }
+
+        function closeQRModal() {
+            document.getElementById('qrModal').classList.add('hidden');
+        }
+
+        function printShopQR() {
+            const printContent = document.getElementById('printableQRPoster').outerHTML;
+            const printWin = window.open('', '_blank');
+            printWin.document.write(`
+                <html>
+                    <head>
+                        <title>Rimjhim Cyber Zone - Shop QR Poster</title>
+                        <script src="https://cdn.tailwindcss.com"><\/script>
+                        <style>
+                            body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #fff; padding: 40px; }
+                            #printableQRPoster { max-width: 420px; margin: 0 auto; }
+                        </style>
+                    </head>
+                    <body>
+                        ${printContent}
+                        <script>
+                            setTimeout(() => { window.print(); window.close(); }, 500);
+                        <\/script>
+                    </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+
+        // Audio Toggle
+        function toggleAudio() {
+            isAudioEnabled = !isAudioEnabled;
+            const icon = document.getElementById('soundIcon');
+            const label = document.getElementById('soundLabel');
+
+            if (isAudioEnabled) {
+                icon.className = "fa-solid fa-volume-high text-emerald-600";
+                label.innerText = "Sound: ON";
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-slate-400";
+                label.innerText = "Sound: OFF";
+            }
+        }
+
+        // Floating Toast Notification
+        function showNotificationPop(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-5 right-5 bg-slate-900 text-cyan-300 font-bold text-xs py-3 px-5 rounded-2xl shadow-2xl flex items-center space-x-2 z-50 animate-bounce';
+            toast.innerHTML = `<i class="fa-solid fa-bell text-amber-400"></i><span>${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        function getFileIconClass(type, category) {
+            if (category === 'aadhaar') return 'fa-solid fa-address-card text-emerald-600';
+            if (type && type.includes('pdf')) return 'fa-solid fa-file-pdf text-rose-500';
+            if (type && type.includes('image')) return 'fa-solid fa-file-image text-emerald-500';
+            return 'fa-solid fa-file text-brand-500';
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
